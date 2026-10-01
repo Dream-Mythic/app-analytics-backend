@@ -56,6 +56,7 @@ const trackEvent = async (req, res) => {
 const getStats = async (req, res) => {
     try {
         const {appId} = req.query;
+
         const startOfToday = getTodayStart();
 
         if (appId && !isValidApp(appId)) {
@@ -69,20 +70,62 @@ const getStats = async (req, res) => {
             createdAt: {
                 $gte: startOfToday,
             },
+            ...(appId ? {appId} : {}),
         };
 
-        if (appId) {
-            filter.appId = appId;
-        }
+        /*
+         * Get all unique devices for today.
+         * For each device, keep only its latest event.
+         */
+        const uniqueDevicesPipeline = [
+            {
+                $match: filter,
+            },
+            {
+                $sort: {
+                    deviceId: 1,
+                    createdAt: -1,
+                },
+            },
+            {
+                $group: {
+                    _id: "$deviceId",
+                    appId: {
+                        $first: "$appId",
+                    },
+                    country: {
+                        $first: "$country",
+                    },
+                    region: {
+                        $first: "$region",
+                    },
+                    city: {
+                        $first: "$city",
+                    },
+                    platform: {
+                        $first: "$platform",
+                    },
+                },
+            },
+        ];
 
-        const [todayUsers, todaySessions, usageResult, countries, regions, platforms] = await Promise.all([
-            Event.distinct("deviceId", filter),
+        const [uniqueDevices, todaySessions, usageResult, countries, regions, platforms, apps] = await Promise.all([
+            /*
+             * Unique users
+             */
+            Event.aggregate(uniqueDevicesPipeline),
 
+            /*
+             * Total sessions started today
+             */
             Event.countDocuments({
                 ...filter,
                 event: "session_start",
             }),
 
+            /*
+             * Usage duration
+             */
             Event.aggregate([
                 {
                     $match: {
@@ -103,21 +146,16 @@ const getStats = async (req, res) => {
                 },
             ]),
 
+            /*
+             * Countries
+             *
+             * One device can only belong to one country.
+             */
             Event.aggregate([
-                {
-                    $match: filter,
-                },
+                ...uniqueDevicesPipeline,
                 {
                     $group: {
-                        _id: {
-                            country: "$country",
-                            deviceId: "$deviceId",
-                        },
-                    },
-                },
-                {
-                    $group: {
-                        _id: "$_id.country",
+                        _id: "$country",
                         users: {
                             $sum: 1,
                         },
@@ -133,24 +171,19 @@ const getStats = async (req, res) => {
                 },
             ]),
 
+            /*
+             * Regions / Cities
+             *
+             * One device can only belong to one location.
+             */
             Event.aggregate([
-                {
-                    $match: filter,
-                },
+                ...uniqueDevicesPipeline,
                 {
                     $group: {
                         _id: {
                             country: "$country",
                             region: "$region",
-                            deviceId: "$deviceId",
-                        },
-                    },
-                },
-                {
-                    $group: {
-                        _id: {
-                            country: "$_id.country",
-                            region: "$_id.region",
+                            city: "$city",
                         },
                         users: {
                             $sum: 1,
@@ -167,21 +200,38 @@ const getStats = async (req, res) => {
                 },
             ]),
 
+            /*
+             * Platforms
+             *
+             * One device can only belong to one platform.
+             */
             Event.aggregate([
-                {
-                    $match: filter,
-                },
+                ...uniqueDevicesPipeline,
                 {
                     $group: {
-                        _id: {
-                            platform: "$platform",
-                            deviceId: "$deviceId",
+                        _id: "$platform",
+                        users: {
+                            $sum: 1,
                         },
                     },
                 },
                 {
+                    $sort: {
+                        users: -1,
+                    },
+                },
+            ]),
+
+            /*
+             * Apps
+             *
+             * One device counted only once.
+             */
+            Event.aggregate([
+                ...uniqueDevicesPipeline,
+                {
                     $group: {
-                        _id: "$_id.platform",
+                        _id: "$appId",
                         users: {
                             $sum: 1,
                         },
@@ -201,48 +251,18 @@ const getStats = async (req, res) => {
 
         const averageSessionMinutes = usageSessions > 0 ? Number((totalDuration / usageSessions / 60).toFixed(2)) : 0;
 
-        const apps = await Event.aggregate([
-            {
-                $match: {
-                    createdAt: {
-                        $gte: startOfToday,
-                    },
-                    ...(appId ? {appId} : {}),
-                },
-            },
-            {
-                $group: {
-                    _id: {
-                        appId: "$appId",
-                        deviceId: "$deviceId",
-                    },
-                },
-            },
-            {
-                $group: {
-                    _id: "$_id.appId",
-                    users: {
-                        $sum: 1,
-                    },
-                },
-            },
-            {
-                $sort: {
-                    users: -1,
-                },
-            },
-        ]);
-
         return res.status(200).json({
             success: true,
             date: startOfToday.toISOString().split("T")[0],
             appId: appId || "all",
+
             today: {
-                uniqueUsers: todayUsers.length,
+                uniqueUsers: uniqueDevices.length,
                 sessions: todaySessions,
                 totalUsageMinutes: Math.round(totalDuration / 60),
                 averageSessionMinutes,
             },
+
             apps,
             countries,
             regions,
@@ -298,9 +318,6 @@ const getDailyStats = async (req, res) => {
                         day: {
                             $dayOfMonth: "$createdAt",
                         },
-                        country: "$country",
-                        region: "$region",
-                        city: "$city",
                         deviceId: "$deviceId",
                     },
                 },
@@ -311,9 +328,6 @@ const getDailyStats = async (req, res) => {
                         year: "$_id.year",
                         month: "$_id.month",
                         day: "$_id.day",
-                        country: "$_id.country",
-                        region: "$_id.region",
-                        city: "$_id.city",
                     },
                     users: {
                         $sum: 1,
@@ -325,9 +339,6 @@ const getDailyStats = async (req, res) => {
                     "_id.year": 1,
                     "_id.month": 1,
                     "_id.day": 1,
-                    "_id.country": 1,
-                    "_id.region": 1,
-                    "_id.city": 1,
                 },
             },
         ]);
