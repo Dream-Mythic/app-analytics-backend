@@ -10,9 +10,9 @@ const getAllowedApps = () =>
 const isValidApp = (appId) => getAllowedApps().includes(appId);
 
 const getTodayStart = () => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    return date;
+    const now = new Date();
+
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 };
 
 const trackEvent = async (req, res) => {
@@ -298,6 +298,9 @@ const getDailyStats = async (req, res) => {
                         day: {
                             $dayOfMonth: "$createdAt",
                         },
+                        country: "$country",
+                        region: "$region",
+                        city: "$city",
                         deviceId: "$deviceId",
                     },
                 },
@@ -308,6 +311,9 @@ const getDailyStats = async (req, res) => {
                         year: "$_id.year",
                         month: "$_id.month",
                         day: "$_id.day",
+                        country: "$_id.country",
+                        region: "$_id.region",
+                        city: "$_id.city",
                     },
                     users: {
                         $sum: 1,
@@ -319,6 +325,9 @@ const getDailyStats = async (req, res) => {
                     "_id.year": 1,
                     "_id.month": 1,
                     "_id.day": 1,
+                    "_id.country": 1,
+                    "_id.region": 1,
+                    "_id.city": 1,
                 },
             },
         ]);
