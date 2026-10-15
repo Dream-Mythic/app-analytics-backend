@@ -55,7 +55,12 @@ const trackEvent = async (req, res) => {
 
 const getStats = async (req, res) => {
     try {
-        const {appId, date} = req.query;
+        const {date} = req.query;
+        let {appId} = req.query;
+
+        if (appId === "all") {
+            appId = undefined;
+        }
 
         if (appId && !isValidApp(appId)) {
             return res.status(400).json({
