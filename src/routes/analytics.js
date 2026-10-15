@@ -69,9 +69,16 @@ router.post("/track", validateTrack, trackEvent);
  *   get:
  *     tags:
  *       - Analytics
- *     summary: Get today's analytics
- *     description: Returns today's unique users, sessions, usage time, applications, countries, regions, and platforms.
+ *     summary: Get date-wise analytics
  *     parameters:
+ *       - name: date
+ *         in: query
+ *         required: false
+ *         description: Analytics date in YYYY-MM-DD format. Defaults to today in IST.
+ *         schema:
+ *           type: string
+ *           format: date
+ *         example: "2026-10-15"
  *       - name: appId
  *         in: query
  *         required: false
@@ -83,12 +90,11 @@ router.post("/track", validateTrack, trackEvent);
  *       200:
  *         description: Analytics data returned successfully
  *       400:
- *         description: Invalid appId
+ *         description: Invalid date or appId
  *       500:
  *         description: Internal server error
  */
 router.get("/stats", getStats);
-
 /**
  * @swagger
  * /api/stats/daily:

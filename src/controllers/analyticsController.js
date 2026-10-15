@@ -55,9 +55,7 @@ const trackEvent = async (req, res) => {
 
 const getStats = async (req, res) => {
     try {
-        const {appId} = req.query;
-
-        const startOfToday = getTodayStart();
+        const {appId, date} = req.query;
 
         if (appId && !isValidApp(appId)) {
             return res.status(400).json({
@@ -66,9 +64,43 @@ const getStats = async (req, res) => {
             });
         }
 
+        const now = new Date();
+
+        const selectedDate =
+            date ||
+            new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().split("T")[0];
+
+        // Validate YYYY-MM-DD format
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid date. Use YYYY-MM-DD",
+            });
+        }
+
+        // Validate that the date actually exists
+        const parsedDate = new Date(`${selectedDate}T00:00:00.000Z`);
+
+        if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== selectedDate) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid date",
+            });
+        }
+
+        // Selected date boundaries in UTC
+        const startOfDay = new Date(
+            Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate())
+        );
+
+        const endOfDay = new Date(
+            Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate() + 1)
+        );
+
         const filter = {
             createdAt: {
-                $gte: startOfToday,
+                $gte: startOfDay,
+                $lt: endOfDay,
             },
             ...(appId ? {appId} : {}),
         };
@@ -253,7 +285,7 @@ const getStats = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            date: startOfToday.toISOString().split("T")[0],
+            date: selectedDate,
             appId: appId || "all",
 
             today: {
