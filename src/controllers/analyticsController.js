@@ -319,7 +319,11 @@ const getDailyStats = async (req, res) => {
     try {
         const days = Math.min(Math.max(Number.parseInt(req.query.days || "7", 10), 1), 90);
 
-        const {appId} = req.query;
+        let {appId} = req.query;
+
+        if (appId === "all") {
+            appId = undefined;
+        }
 
         if (appId && !isValidApp(appId)) {
             return res.status(400).json({
@@ -398,7 +402,11 @@ const getDailyStats = async (req, res) => {
 
 const getLocations = async (req, res) => {
     try {
-        const {appId} = req.query;
+        let {appId} = req.query;
+
+        if (appId === "all") {
+            appId = undefined;
+        }
 
         if (appId && !isValidApp(appId)) {
             return res.status(400).json({
