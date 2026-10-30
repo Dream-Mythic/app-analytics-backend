@@ -9,6 +9,7 @@ const swaggerUi = require("swagger-ui-express");
 const connectDB = require("./config/db");
 const swaggerSpec = require("./swagger");
 const analyticsRoutes = require("./routes/analytics");
+const aiLogsRouter = require("./routes/aiLogs");
 
 const app = express();
 
@@ -79,6 +80,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api", analyticsRoutes);
+app.use("/api/log", aiLogsRouter);
 
 app.use(
     "/api-docs",
