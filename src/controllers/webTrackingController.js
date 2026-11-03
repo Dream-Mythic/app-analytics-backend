@@ -1,4 +1,3 @@
-
 const WebTrackingEvent = require("../models/WebTrackingEvent");
 const WebTrackingSession = require("../models/WebTrackingSession");
 
@@ -21,11 +20,9 @@ const ALLOWED_EVENTS = new Set([
     "error",
 ]);
 
-const asyncHandler = (fn) => (req, res, next) =>
-    Promise.resolve(fn(req, res, next)).catch(next);
+const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-const cleanString = (value, max = 2048) =>
-    typeof value === "string" ? value.trim().slice(0, max) : "";
+const cleanString = (value, max = 2048) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 function getEventData(body) {
     const eventName = cleanString(body.eventName, 100);
@@ -44,17 +41,13 @@ function getEventData(body) {
         typeof body.visitorId !== "string" ||
         typeof body.sessionId !== "string"
     ) {
-        const error = new Error(
-            "appId, visitorId and sessionId are required"
-        );
+        const error = new Error("appId, visitorId and sessionId are required");
         error.status = 400;
         throw error;
     }
 
     const properties =
-        body.properties &&
-            typeof body.properties === "object" &&
-            !Array.isArray(body.properties)
+        body.properties && typeof body.properties === "object" && !Array.isArray(body.properties)
             ? body.properties
             : {};
 
@@ -68,9 +61,7 @@ function getEventData(body) {
         pageTitle: cleanString(body.pageTitle, 300),
         referrer: cleanString(body.referrer),
         source: cleanString(body.source, 100) || "direct",
-        device: ["mobile", "desktop", "tablet"].includes(body.device)
-            ? body.device
-            : "unknown",
+        device: ["mobile", "desktop", "tablet"].includes(body.device) ? body.device : "unknown",
         browser: cleanString(body.browser, 100) || "unknown",
         // Location must come from a trusted server-side lookup or
         // an explicitly consented, permitted source.
@@ -79,9 +70,7 @@ function getEventData(body) {
         city: cleanString(body.city, 100) || null,
         properties,
         durationMs:
-            Number.isFinite(body.durationMs) && body.durationMs >= 0
-                ? Math.min(body.durationMs, 86400000)
-                : null,
+            Number.isFinite(body.durationMs) && body.durationMs >= 0 ? Math.min(body.durationMs, 86400000) : null,
         occurredAt: new Date(),
     };
 }
@@ -90,7 +79,7 @@ async function saveEvent(body) {
     const data = getEventData(body);
 
     await WebTrackingSession.updateOne(
-        { sessionId: data.sessionId, appId: data.appId },
+        {sessionId: data.sessionId, appId: data.appId},
         {
             $set: {
                 lastSeenAt: new Date(),
@@ -103,22 +92,16 @@ async function saveEvent(body) {
 }
 
 function dateRange(query) {
-    const from = query.from
-        ? new Date(query.from)
-        : new Date(Date.now() - 7 * 86400000);
+    const from = query.from ? new Date(query.from) : new Date(Date.now() - 7 * 86400000);
     const to = query.to ? new Date(query.to) : new Date();
 
-    if (
-        Number.isNaN(from.getTime()) ||
-        Number.isNaN(to.getTime()) ||
-        from > to
-    ) {
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
         const error = new Error("Invalid date range");
         error.status = 400;
         throw error;
     }
 
-    return { $gte: from, $lte: to };
+    return {$gte: from, $lte: to};
 }
 
 function appFilter(req) {
@@ -139,27 +122,20 @@ function eventMatch(req) {
 }
 
 function getPage(req) {
-    const limit = Math.min(
-        Math.max(Number.parseInt(req.query.limit, 10) || 50, 1),
-        200
-    );
-    const page = Math.max(
-        Number.parseInt(req.query.page, 10) || 1,
-        1
-    );
-    return { limit, skip: (page - 1) * limit };
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 200);
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    return {limit, skip: (page - 1) * limit};
 }
 
 exports.collect = asyncHandler(async (req, res) => {
     const event = await saveEvent(req.body);
-    res.status(201).json({ success: true, eventId: event._id });
+    res.status(201).json({success: true, eventId: event._id});
 });
 
 exports.batch = asyncHandler(async (req, res) => {
     const events = req.body.events;
 
-    if (!Array.isArray(events) || events.length === 0 ||
-        events.length > MAX_BATCH_SIZE) {
+    if (!Array.isArray(events) || events.length === 0 || events.length > MAX_BATCH_SIZE) {
         return res.status(400).json({
             success: false,
             message: `events must contain 1-${MAX_BATCH_SIZE} items`,
@@ -193,7 +169,7 @@ exports.startSession = asyncHandler(async (req, res) => {
 
     const now = new Date();
     const session = await WebTrackingSession.findOneAndUpdate(
-        { sessionId },
+        {sessionId},
         {
             $set: {
                 appId,
@@ -202,9 +178,7 @@ exports.startSession = asyncHandler(async (req, res) => {
                 currentPage: cleanString(body.pageUrl),
                 referrer: cleanString(body.referrer),
                 source: cleanString(body.source, 100) || "direct",
-                device: ["mobile", "desktop", "tablet"].includes(body.device)
-                    ? body.device
-                    : "unknown",
+                device: ["mobile", "desktop", "tablet"].includes(body.device) ? body.device : "unknown",
                 browser: cleanString(body.browser, 100) || "unknown",
                 country: cleanString(body.country, 100) || null,
                 region: cleanString(body.region, 100) || null,
@@ -213,16 +187,16 @@ exports.startSession = asyncHandler(async (req, res) => {
                 isActive: true,
                 endedAt: null,
             },
-            $setOnInsert: { startedAt: now },
+            $setOnInsert: {startedAt: now},
         },
-        { new: true, upsert: true, runValidators: true }
+        {new: true, upsert: true, runValidators: true}
     );
 
-    res.status(201).json({ success: true, session });
+    res.status(201).json({success: true, session});
 });
 
 exports.heartbeat = asyncHandler(async (req, res) => {
-    const { appId, sessionId } = req.body;
+    const {appId, sessionId} = req.body;
 
     const session = await WebTrackingSession.findOneAndUpdate(
         {
@@ -233,12 +207,10 @@ exports.heartbeat = asyncHandler(async (req, res) => {
         {
             $set: {
                 lastSeenAt: new Date(),
-                ...(req.body.pageUrl
-                    ? { currentPage: cleanString(req.body.pageUrl) }
-                    : {}),
+                ...(req.body.pageUrl ? {currentPage: cleanString(req.body.pageUrl)} : {}),
             },
         },
-        { new: true }
+        {new: true}
     );
 
     if (!session) {
@@ -248,11 +220,11 @@ exports.heartbeat = asyncHandler(async (req, res) => {
         });
     }
 
-    res.json({ success: true, lastSeenAt: session.lastSeenAt });
+    res.json({success: true, lastSeenAt: session.lastSeenAt});
 });
 
 exports.endSession = asyncHandler(async (req, res) => {
-    const { appId, sessionId } = req.body;
+    const {appId, sessionId} = req.body;
 
     const session = await WebTrackingSession.findOneAndUpdate(
         {
@@ -260,9 +232,9 @@ exports.endSession = asyncHandler(async (req, res) => {
             sessionId: cleanString(sessionId, 150),
         },
         {
-            $set: { isActive: false, endedAt: new Date() },
+            $set: {isActive: false, endedAt: new Date()},
         },
-        { new: true }
+        {new: true}
     );
 
     if (!session) {
@@ -272,7 +244,7 @@ exports.endSession = asyncHandler(async (req, res) => {
         });
     }
 
-    res.json({ success: true });
+    res.json({success: true});
 });
 
 exports.realtime = asyncHandler(async (req, res) => {
@@ -283,20 +255,20 @@ exports.realtime = asyncHandler(async (req, res) => {
         WebTrackingSession.find({
             appId,
             isActive: true,
-            lastSeenAt: { $gte: cutoff },
+            lastSeenAt: {$gte: cutoff},
         })
-            .sort({ lastSeenAt: -1 })
-            .limit(200)
-            .lean(),
+        .sort({lastSeenAt: -1})
+        .limit(200)
+        .lean(),
         WebTrackingSession.countDocuments({
             appId,
             isActive: true,
-            lastSeenAt: { $gte: cutoff },
+            lastSeenAt: {$gte: cutoff},
         }),
         WebTrackingSession.distinct("visitorId", {
             appId,
             isActive: true,
-            lastSeenAt: { $gte: cutoff },
+            lastSeenAt: {$gte: cutoff},
         }),
     ]);
 
@@ -312,36 +284,31 @@ exports.realtime = asyncHandler(async (req, res) => {
 exports.overview = asyncHandler(async (req, res) => {
     const match = eventMatch(req);
 
-    const [summary, uniqueVisitors, sessions, previousEvents] =
-        await Promise.all([
-            WebTrackingEvent.aggregate([
-                { $match: match },
-                {
-                    $group: {
-                        _id: null,
-                        totalEvents: { $sum: 1 },
-                        pageViews: {
-                            $sum: { $cond: [{ $eq: ["$eventName", "page_view"] }, 1, 0] },
-                        },
-                        conversions: {
-                            $sum: {
-                                $cond: [
-                                    { $in: ["$eventName", ["conversion", "purchase", "signup"]] },
-                                    1,
-                                    0,
-                                ],
-                            },
+    const [summary, uniqueVisitors, sessions, previousEvents] = await Promise.all([
+        WebTrackingEvent.aggregate([
+            {$match: match},
+            {
+                $group: {
+                    _id: null,
+                    totalEvents: {$sum: 1},
+                    pageViews: {
+                        $sum: {$cond: [{$eq: ["$eventName", "page_view"]}, 1, 0]},
+                    },
+                    conversions: {
+                        $sum: {
+                            $cond: [{$in: ["$eventName", ["conversion", "purchase", "signup"]]}, 1, 0],
                         },
                     },
                 },
-            ]),
-            WebTrackingEvent.distinct("visitorId", match),
-            WebTrackingSession.countDocuments({
-                appId: match.appId,
-                startedAt: match.occurredAt,
-            }),
-            Promise.resolve(null),
-        ]);
+            },
+        ]),
+        WebTrackingEvent.distinct("visitorId", match),
+        WebTrackingSession.countDocuments({
+            appId: match.appId,
+            startedAt: match.occurredAt,
+        }),
+        Promise.resolve(null),
+    ]);
 
     res.json({
         success: true,
@@ -359,12 +326,12 @@ exports.overview = asyncHandler(async (req, res) => {
 
 exports.pages = asyncHandler(async (req, res) => {
     const result = await WebTrackingEvent.aggregate([
-        { $match: { ...eventMatch(req), eventName: "page_view" } },
+        {$match: {...eventMatch(req), eventName: "page_view"}},
         {
             $group: {
                 _id: "$pageUrl",
-                views: { $sum: 1 },
-                visitors: { $addToSet: "$visitorId" },
+                views: {$sum: 1},
+                visitors: {$addToSet: "$visitorId"},
             },
         },
         {
@@ -372,43 +339,39 @@ exports.pages = asyncHandler(async (req, res) => {
                 _id: 0,
                 pageUrl: "$_id",
                 views: 1,
-                uniqueVisitors: { $size: "$visitors" },
+                uniqueVisitors: {$size: "$visitors"},
             },
         },
-        { $sort: { views: -1 } },
-        { $limit: 100 },
+        {$sort: {views: -1}},
+        {$limit: 100},
     ]);
 
-    res.json({ success: true, pages: result });
+    res.json({success: true, pages: result});
 });
 
 exports.events = asyncHandler(async (req, res) => {
-    const { limit, skip } = getPage(req);
+    const {limit, skip} = getPage(req);
     const filter = eventMatch(req);
     if (req.query.eventName) {
         filter.eventName = cleanString(req.query.eventName, 100);
     }
 
     const [events, total] = await Promise.all([
-        WebTrackingEvent.find(filter)
-            .sort({ occurredAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .lean(),
+        WebTrackingEvent.find(filter).sort({occurredAt: -1}).skip(skip).limit(limit).lean(),
         WebTrackingEvent.countDocuments(filter),
     ]);
 
-    res.json({ success: true, events, total, limit, page: skip / limit + 1 });
+    res.json({success: true, events, total, limit, page: skip / limit + 1});
 });
 
 exports.sources = asyncHandler(async (req, res) => {
     const sources = await WebTrackingEvent.aggregate([
-        { $match: { ...eventMatch(req), eventName: "page_view" } },
+        {$match: {...eventMatch(req), eventName: "page_view"}},
         {
             $group: {
                 _id: "$source",
-                visits: { $sum: 1 },
-                visitors: { $addToSet: "$visitorId" },
+                visits: {$sum: 1},
+                visitors: {$addToSet: "$visitorId"},
             },
         },
         {
@@ -416,23 +379,23 @@ exports.sources = asyncHandler(async (req, res) => {
                 _id: 0,
                 source: "$_id",
                 visits: 1,
-                uniqueVisitors: { $size: "$visitors" },
+                uniqueVisitors: {$size: "$visitors"},
             },
         },
-        { $sort: { visits: -1 } },
+        {$sort: {visits: -1}},
     ]);
 
-    res.json({ success: true, sources });
+    res.json({success: true, sources});
 });
 
 exports.devices = asyncHandler(async (req, res) => {
     const devices = await WebTrackingEvent.aggregate([
-        { $match: { ...eventMatch(req), eventName: "page_view" } },
+        {$match: {...eventMatch(req), eventName: "page_view"}},
         {
             $group: {
-                _id: { device: "$device", browser: "$browser" },
-                pageViews: { $sum: 1 },
-                visitors: { $addToSet: "$visitorId" },
+                _id: {device: "$device", browser: "$browser"},
+                pageViews: {$sum: 1},
+                visitors: {$addToSet: "$visitorId"},
             },
         },
         {
@@ -441,18 +404,18 @@ exports.devices = asyncHandler(async (req, res) => {
                 device: "$_id.device",
                 browser: "$_id.browser",
                 pageViews: 1,
-                uniqueVisitors: { $size: "$visitors" },
+                uniqueVisitors: {$size: "$visitors"},
             },
         },
-        { $sort: { pageViews: -1 } },
+        {$sort: {pageViews: -1}},
     ]);
 
-    res.json({ success: true, devices });
+    res.json({success: true, devices});
 });
 
 exports.locations = asyncHandler(async (req, res) => {
     const locations = await WebTrackingEvent.aggregate([
-        { $match: { ...eventMatch(req), eventName: "page_view" } },
+        {$match: {...eventMatch(req), eventName: "page_view"}},
         {
             $group: {
                 _id: {
@@ -460,8 +423,8 @@ exports.locations = asyncHandler(async (req, res) => {
                     region: "$region",
                     city: "$city",
                 },
-                visits: { $sum: 1 },
-                visitors: { $addToSet: "$visitorId" },
+                visits: {$sum: 1},
+                visitors: {$addToSet: "$visitorId"},
             },
         },
         {
@@ -471,14 +434,14 @@ exports.locations = asyncHandler(async (req, res) => {
                 region: "$_id.region",
                 city: "$_id.city",
                 visits: 1,
-                uniqueVisitors: { $size: "$visitors" },
+                uniqueVisitors: {$size: "$visitors"},
             },
         },
-        { $sort: { visits: -1 } },
-        { $limit: 200 },
+        {$sort: {visits: -1}},
+        {$limit: 200},
     ]);
 
-    res.json({ success: true, locations });
+    res.json({success: true, locations});
 });
 
 exports.funnels = asyncHandler(async (req, res) => {
@@ -486,12 +449,12 @@ exports.funnels = asyncHandler(async (req, res) => {
     const stages = ["page_view", "signup", "purchase"];
 
     const counts = await WebTrackingEvent.aggregate([
-        { $match: { ...match, eventName: { $in: stages } } },
+        {$match: {...match, eventName: {$in: stages}}},
         {
             $group: {
                 _id: "$eventName",
-                visitors: { $addToSet: "$visitorId" },
-                events: { $sum: 1 },
+                visitors: {$addToSet: "$visitorId"},
+                events: {$sum: 1},
             },
         },
     ]);
@@ -508,8 +471,7 @@ exports.funnels = asyncHandler(async (req, res) => {
                 stage,
                 visitors,
                 events: item?.events || 0,
-                conversionRate:
-                    visitCount > 0 ? Number(((visitors / visitCount) * 100).toFixed(2)) : 0,
+                conversionRate: visitCount > 0 ? Number(((visitors / visitCount) * 100).toFixed(2)) : 0,
             };
         }),
     });
@@ -520,17 +482,17 @@ exports.performance = asyncHandler(async (req, res) => {
         {
             $match: {
                 ...eventMatch(req),
-                eventName: { $in: ["performance", "error"] },
+                eventName: {$in: ["performance", "error"]},
             },
         },
         {
             $group: {
                 _id: "$eventName",
-                count: { $sum: 1 },
-                averageDurationMs: { $avg: "$durationMs" },
+                count: {$sum: 1},
+                averageDurationMs: {$avg: "$durationMs"},
             },
         },
     ]);
 
-    res.json({ success: true, performance: result });
+    res.json({success: true, performance: result});
 });

@@ -7,6 +7,8 @@ const rateLimit = require("express-rate-limit");
 const swaggerUi = require("swagger-ui-express");
 
 const connectDB = require("./config/db");
+const createCorsOptions = require("./middleware/corsOptions");
+const { validateWebTrackingToken } = require("./middleware/webTrackingAuth");
 const swaggerSpec = require("./swagger");
 const analyticsRoutes = require("./routes/analytics");
 const aiLogsRouter = require("./routes/aiLogs");
@@ -35,27 +37,20 @@ const allowedOrigins = (process.env.CORS_ORIGINS || "")
 .filter(Boolean);
 
 app.use(
-    cors({
-        origin: (origin, callback) => {
-            if (NODE_ENV !== "production") {
-                return callback(null, true);
-            }
-
-            if (!origin || allowedOrigins.includes(origin)) {
-                return callback(null, true);
-            }
-
-            return callback(new Error("CORS origin not allowed"));
-        },
-        credentials: false,
-    })
+    cors(createCorsOptions({ nodeEnv: NODE_ENV, allowedOrigins }))
 );
 
-app.use(
-    express.json({
-        limit: "100kb",
-    })
-);
+const jsonParser = express.json({ limit: "100kb" });
+app.use((req, res, next) => {
+    if (
+        req.path === "/api/web-tracking" ||
+        req.path.startsWith("/api/web-tracking/")
+    ) {
+        return next();
+    }
+
+    return jsonParser(req, res, next);
+});
 
 app.use(
     "/api",
@@ -140,6 +135,7 @@ app.use((err, req, res, next) => {
 
 async function startServer() {
     try {
+        validateWebTrackingToken(process.env.WEB_TRACKING_TOKEN);
         await connectDB();
 
         const server = app.listen(PORT, () => {

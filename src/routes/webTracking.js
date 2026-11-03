@@ -1,6 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/webTrackingController");
+const {
+    createWebTrackingAuthMiddleware,
+} = require("../middleware/webTrackingAuth");
+
+router.use(createWebTrackingAuthMiddleware());
+router.use(express.json({ limit: "100kb" }));
 
 const collectSchema = {
     type: "object",
@@ -61,6 +67,8 @@ const queryParams = [
  *   post:
  *     tags: [Web Tracking]
  *     summary: Collect a single web tracking event
+ *     security:
+ *       - WebTrackingToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -81,6 +89,8 @@ router.post("/collect", controller.collect);
  *   post:
  *     tags: [Web Tracking]
  *     summary: Collect multiple events in one request
+ *     security:
+ *       - WebTrackingToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -108,6 +118,8 @@ router.post("/batch", controller.batch);
  *   post:
  *     tags: [Web Tracking]
  *     summary: Start a web visitor session
+ *     security:
+ *       - WebTrackingToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -136,6 +148,8 @@ router.post("/session/start", controller.startSession);
  *   post:
  *     tags: [Web Tracking]
  *     summary: Update an active session heartbeat
+ *     security:
+ *       - WebTrackingToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -161,6 +175,8 @@ router.post("/session/heartbeat", controller.heartbeat);
  *   post:
  *     tags: [Web Tracking]
  *     summary: End a web visitor session
+ *     security:
+ *       - WebTrackingToken: []
  *     requestBody:
  *       required: true
  *       content:
@@ -185,6 +201,8 @@ router.post("/session/end", controller.endSession);
  *   get:
  *     tags: [Web Tracking]
  *     summary: Get currently active sessions and visitors
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId
@@ -202,6 +220,8 @@ router.get("/realtime", controller.realtime);
  *   get:
  *     tags: [Web Tracking]
  *     summary: Get visitors, page views, sessions and conversions
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId
@@ -225,6 +245,8 @@ router.get("/overview", controller.overview);
  *   get:
  *     tags: [Web Tracking]
  *     summary: Get popular pages and their views
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId
@@ -248,6 +270,8 @@ router.get("/pages", controller.pages);
  *   get:
  *     tags: [Web Tracking]
  *     summary: List recorded tracking events
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId
@@ -280,6 +304,8 @@ router.get("/events", controller.events);
  *   get:
  *     tags: [Web Tracking]
  *     summary: Get traffic sources and referrals
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId
@@ -303,6 +329,8 @@ router.get("/sources", controller.sources);
  *   get:
  *     tags: [Web Tracking]
  *     summary: Get device and browser statistics
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId
@@ -326,6 +354,8 @@ router.get("/devices", controller.devices);
  *   get:
  *     tags: [Web Tracking]
  *     summary: Get approximate visitor locations
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId
@@ -349,6 +379,8 @@ router.get("/locations", controller.locations);
  *   get:
  *     tags: [Web Tracking]
  *     summary: Get page view to signup to purchase funnel
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId
@@ -372,6 +404,8 @@ router.get("/funnels", controller.funnels);
  *   get:
  *     tags: [Web Tracking]
  *     summary: Get performance and error event statistics
+ *     security:
+ *       - WebTrackingToken: []
  *     parameters:
  *       - in: query
  *         name: appId

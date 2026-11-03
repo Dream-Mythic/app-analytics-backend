@@ -26,6 +26,15 @@ const swaggerSpec = swaggerJsdoc({
         ],
 
         components: {
+            securitySchemes: {
+                WebTrackingToken: {
+                    type: "apiKey",
+                    in: "header",
+                    name: "X-Web-Tracking-Token",
+                    description:
+                        "40-digit web tracking shared token. It is not suitable for protecting administrative analytics.",
+                },
+            },
             schemas: {
                 WebTrackingEventInput: {
                     type: "object",
