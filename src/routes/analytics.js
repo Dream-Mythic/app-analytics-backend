@@ -1,6 +1,13 @@
 const express = require("express");
 
-const {trackEvent, getStats, getDailyStats, getLocations} = require("../controllers/analyticsController");
+const {
+    trackEvent,
+    getStats,
+    getDailyStats,
+    getLocations,
+    getDailyUserStats,
+    getDeviceHistory
+} = require("../controllers/analyticsController");
 
 const {validateTrack} = require("../middleware/validate");
 
@@ -156,5 +163,82 @@ router.get("/stats/daily", getDailyStats);
  *         description: Internal server error
  */
 router.get("/stats/locations", getLocations);
+
+/**
+ * @swagger
+ * /api/daily-user-stats:
+ *   get:
+ *     tags:
+ *       - Analytics
+ *     description: Get daily usage, location and device statistics for each user. Use appId "all" to include all apps.
+ *     parameters:
+ *       - in: query
+ *         name: appId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: all
+ *         description: App ID or all for every app
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2026-11-07"
+ *         description: Date in YYYY-MM-DD format
+ *     responses:
+ *       200:
+ *         description: Daily user statistics retrieved successfully
+ *       400:
+ *         description: Invalid appId or date
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/daily-user-stats", getDailyUserStats);
+
+/**
+ * @swagger
+ * /api/device-history:
+ *   get:
+ *     tags:
+ *       - Analytics
+ *     description: Get complete usage and event history of a device.
+ *     parameters:
+ *       - in: query
+ *         name: deviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Device ID
+ *       - in: query
+ *         name: appId
+ *         required: false
+ *         schema:
+ *           type: string
+ *           default: all
+ *         description: App ID or all for every app
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *           maximum: 200
+ *     responses:
+ *       200:
+ *         description: Device history retrieved successfully
+ *       400:
+ *         description: Invalid request
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/device-history", getDeviceHistory);
 
 module.exports = router;

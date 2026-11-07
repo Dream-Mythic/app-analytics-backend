@@ -469,9 +469,372 @@ const getLocations = async (req, res) => {
     }
 };
 
+const getDailyUserStats = async (req, res) => {
+    try {
+        let {appId = "all", date} = req.query;
+
+        if (appId !== "all" && !isValidApp(appId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid appId",
+            });
+        }
+
+        // Validate date (YYYY-MM-DD)
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid date is required (YYYY-MM-DD)",
+            });
+        }
+
+        const start = new Date(`${date}T00:00:00.000Z`);
+        const end = new Date(start);
+        end.setUTCDate(end.getUTCDate() + 1);
+
+        // Validate actual calendar date
+        if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== date) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid date",
+            });
+        }
+
+        const match = {
+            createdAt: {
+                $gte: start,
+                $lt: end,
+            },
+            ...(appId !== "all" ? {appId} : {}),
+        };
+
+        const data = await Event.aggregate([
+            {
+                $match: match,
+            },
+
+            {
+                $sort: {
+                    createdAt: 1,
+                },
+            },
+
+            {
+                $group: {
+                    _id: {
+                        deviceId: "$deviceId",
+                        appId: "$appId",
+                    },
+
+                    country: {$last: "$country"},
+                    region: {$last: "$region"},
+                    city: {$last: "$city"},
+                    platform: {$last: "$platform"},
+
+                    totalSeconds: {
+                        $sum: "$duration",
+                    },
+
+                    totalEvents: {
+                        $sum: 1,
+                    },
+
+                    firstSeen: {
+                        $min: "$createdAt",
+                    },
+
+                    lastSeen: {
+                        $max: "$createdAt",
+                    },
+                },
+            },
+
+            {
+                $project: {
+                    _id: 0,
+
+                    appId: "$_id.appId",
+                    deviceId: "$_id.deviceId",
+
+                    location: {
+                        country: "$country",
+                        region: "$region",
+                        city: "$city",
+                    },
+
+                    platform: 1,
+
+                    totalSeconds: 1,
+
+                    totalMinutes: {
+                        $round: [{$divide: ["$totalSeconds", 60]}, 2],
+                    },
+
+                    totalHours: {
+                        $round: [{$divide: ["$totalSeconds", 3600]}, 2],
+                    },
+
+                    totalEvents: 1,
+                    firstSeen: 1,
+                    lastSeen: 1,
+                },
+            },
+
+            {
+                $sort: {
+                    totalSeconds: -1,
+                },
+            },
+        ]);
+
+        const summary = data.reduce(
+            (acc, user) => {
+                acc.totalUsers += 1;
+                acc.totalSeconds += user.totalSeconds;
+                return acc;
+            },
+            {
+                totalUsers: 0,
+                totalSeconds: 0,
+            }
+        );
+
+        return res.status(200).json({
+            success: true,
+            date,
+            appId,
+            summary: {
+                totalUsers: summary.totalUsers,
+                totalSeconds: summary.totalSeconds,
+                totalMinutes: Number((summary.totalSeconds / 60).toFixed(2)),
+                totalHours: Number((summary.totalSeconds / 3600).toFixed(2)),
+            },
+            count: data.length,
+            data,
+        });
+    } catch (error) {
+        console.error("Daily user stats error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get daily user statistics",
+        });
+    }
+};
+
+const getDeviceHistory = async (req, res) => {
+    try {
+        const {deviceId, appId = "all"} = req.query;
+
+        const page = Math.max(Number.parseInt(req.query.page || "1", 10) || 1, 1);
+
+        const limit = Math.min(Math.max(Number.parseInt(req.query.limit || "50", 10) || 50, 1), 200);
+
+        if (!deviceId || !deviceId.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "deviceId is required",
+            });
+        }
+
+        if (appId !== "all" && !isValidApp(appId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid appId",
+            });
+        }
+
+        const match = {
+            deviceId: deviceId.trim(),
+            ...(appId !== "all" ? {appId} : {}),
+        };
+
+        const skip = (page - 1) * limit;
+
+        const result = await Event.aggregate([
+            {
+                $match: match,
+            },
+            {
+                $facet: {
+                    // Overall device summary
+                    summary: [
+                        {
+                            $group: {
+                                _id: null,
+
+                                totalEvents: {$sum: 1},
+                                totalSeconds: {$sum: "$duration"},
+
+                                firstSeen: {$min: "$createdAt"},
+                                lastSeen: {$max: "$createdAt"},
+
+                                apps: {$addToSet: "$appId"},
+                                platforms: {$addToSet: "$platform"},
+                                countries: {$addToSet: "$country"},
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                totalEvents: 1,
+                                totalSeconds: 1,
+
+                                totalMinutes: {
+                                    $round: [{$divide: ["$totalSeconds", 60]}, 2],
+                                },
+
+                                totalHours: {
+                                    $round: [{$divide: ["$totalSeconds", 3600]}, 2],
+                                },
+
+                                firstSeen: 1,
+                                lastSeen: 1,
+                                apps: 1,
+                                platforms: 1,
+                                countries: 1,
+                            },
+                        },
+                    ],
+
+                    // Daily usage history
+                    dailyStats: [
+                        {
+                            $group: {
+                                _id: {
+                                    year: {$year: "$createdAt"},
+                                    month: {$month: "$createdAt"},
+                                    day: {$dayOfMonth: "$createdAt"},
+                                },
+
+                                totalEvents: {$sum: 1},
+                                totalSeconds: {$sum: "$duration"},
+
+                                apps: {$addToSet: "$appId"},
+                                cities: {$addToSet: "$city"},
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+
+                                date: {
+                                    $dateFromParts: {
+                                        year: "$_id.year",
+                                        month: "$_id.month",
+                                        day: "$_id.day",
+                                    },
+                                },
+
+                                totalEvents: 1,
+                                totalSeconds: 1,
+
+                                totalMinutes: {
+                                    $round: [{$divide: ["$totalSeconds", 60]}, 2],
+                                },
+
+                                apps: 1,
+                                cities: 1,
+                            },
+                        },
+                        {
+                            $sort: {date: -1},
+                        },
+                    ],
+
+                    // Complete event history with pagination
+                    history: [
+                        {
+                            $sort: {createdAt: -1},
+                        },
+                        {
+                            $skip: skip,
+                        },
+                        {
+                            $limit: limit,
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                appId: 1,
+                                deviceId: 1,
+                                event: 1,
+                                duration: 1,
+                                platform: 1,
+
+                                location: {
+                                    country: "$country",
+                                    region: "$region",
+                                    city: "$city",
+                                },
+
+                                createdAt: 1,
+                            },
+                        },
+                    ],
+
+                    // Total records for pagination
+                    pagination: [
+                        {
+                            $count: "totalRecords",
+                        },
+                    ],
+                },
+            },
+        ]);
+
+        const response = result[0];
+
+        const summary = response.summary[0] || {
+            totalEvents: 0,
+            totalSeconds: 0,
+            totalMinutes: 0,
+            totalHours: 0,
+            firstSeen: null,
+            lastSeen: null,
+            apps: [],
+            platforms: [],
+            countries: [],
+        };
+
+        const totalRecords = response.pagination[0]?.totalRecords || 0;
+
+        return res.status(200).json({
+            success: true,
+
+            deviceId,
+            appId,
+
+            summary,
+
+            pagination: {
+                page,
+                limit,
+                totalRecords,
+                totalPages: Math.ceil(totalRecords / limit),
+                hasNextPage: page * limit < totalRecords,
+                hasPrevPage: page > 1,
+            },
+
+            dailyStats: response.dailyStats,
+            history: response.history,
+        });
+    } catch (error) {
+        console.error("Device history error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get device history",
+        });
+    }
+};
+
+
 module.exports = {
     trackEvent,
     getStats,
     getDailyStats,
     getLocations,
+    getDailyUserStats,
+    getDeviceHistory
 };
